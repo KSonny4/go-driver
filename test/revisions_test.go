@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"testing"
 	"time"
@@ -46,6 +47,7 @@ func TestRevisionTree(t *testing.T) {
 	}
 
 	tree, err := getTree()
+
 	if err != nil {
 		if driver.IsArangoErrorWithCode(err, http.StatusNotImplemented) {
 			t.Skip("Collection '" + col.Name() + "' does not support revision-based replication")
@@ -54,13 +56,17 @@ func TestRevisionTree(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	noOfLeafs := 299593
 	require.NotEmpty(t, tree.Version)
 	require.NotEmpty(t, tree.RangeMin)
 	require.NotEmpty(t, tree.RangeMax)
 	require.NotEmpty(t, tree.Nodes)
-	require.Equal(t, noOfLeafs, len(tree.Nodes))
-	require.Equal(t, 6, tree.MaxDepth)
+
+	branchFactor := 8.0
+	noOfLeaves := 0
+	for i := 0; i <= tree.MaxDepth; i++ {
+		noOfLeaves += int(math.Pow(branchFactor, float64(i)))
+	}
+	require.Equalf(t, noOfLeaves, len(tree.Nodes), "Number of leaves in the revision tree is not correct")
 
 	getRanges := func() driver.Revisions {
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -92,7 +98,7 @@ func TestRevisionTree(t *testing.T) {
 
 	revisions := getRanges()
 	require.NotEmpty(t, revisions)
-	require.Len(t, revisions, noOfDocuments)
+	require.Lenf(t, revisions, noOfDocuments, "Number of revisions ranges is not correct")
 
 	getDocuments := func() ([]map[string]interface{}, error) {
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -103,12 +109,12 @@ func TestRevisionTree(t *testing.T) {
 
 	documents, err := getDocuments()
 	require.NoError(t, err)
-	require.Len(t, documents, noOfDocuments)
+	require.Lenf(t, documents, noOfDocuments, "Number of documents is not equal")
 
 	for i, d := range documents {
 		user := UserDoc{}
 		bytes, _ := json.Marshal(d)
 		json.Unmarshal(bytes, &user)
-		require.Equal(t, user, expectedDocuments[i])
+		require.Equalf(t, user, expectedDocuments[i], "Documents should be the same")
 	}
 }
