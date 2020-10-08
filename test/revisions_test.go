@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"net/http"
 	"testing"
 	"time"
@@ -47,7 +46,6 @@ func TestRevisionTree(t *testing.T) {
 	}
 
 	tree, err := getTree()
-
 	if err != nil {
 		if driver.IsArangoErrorWithCode(err, http.StatusNotImplemented) {
 			t.Skip("Collection '" + col.Name() + "' does not support revision-based replication")
@@ -61,10 +59,12 @@ func TestRevisionTree(t *testing.T) {
 	require.NotEmpty(t, tree.RangeMax)
 	require.NotEmpty(t, tree.Nodes)
 
-	branchFactor := 8.0
-	noOfLeaves := 0
-	for i := 0; i <= tree.MaxDepth; i++ {
-		noOfLeaves += int(math.Pow(branchFactor, float64(i)))
+	branchFactor := 8
+	noOfLeavesOnLevel := 1
+	noOfLeaves := noOfLeavesOnLevel
+	for i := 1; i <= tree.MaxDepth; i++ {
+		noOfLeavesOnLevel *= branchFactor
+		noOfLeaves += noOfLeavesOnLevel
 	}
 	require.Equalf(t, noOfLeaves, len(tree.Nodes), "Number of leaves in the revision tree is not correct")
 
